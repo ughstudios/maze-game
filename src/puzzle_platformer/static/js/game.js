@@ -10,6 +10,9 @@ import {
 
 const gameCanvas = document.getElementById('gameCanvas');
 const gameCtx = gameCanvas.getContext('2d');
+gameCtx.fillStyle = 'black';
+gameCtx.font = '14px Arial';
+
 let gameActive = false;
 let currentScore = 0;
 let frameCounter = 0;
@@ -18,12 +21,13 @@ let movementCounter = 0;
 let playerBullets = [];
 
 const bulletSpeed = 5;
-const maxAmmo = 5;
+const maxAmmo = 100;
 
 const gridCellSize = 40;
-const totalRows = Math.floor((gameCanvas.height - 150) / gridCellSize);
+const totalRows = Math.floor((gameCanvas.height - 200) / gridCellSize);
 const totalCols = Math.floor(gameCanvas.width / gridCellSize);
 const movementSpeed = 30;
+const monsterSpawnCount = 15;
 
 let mazeGrid, playerCharacter, keyItem, exitPoint, door;
 let monsters = [];
@@ -49,10 +53,11 @@ function setupGame() {
     playerCharacter = createEntity(1, 1, 'blue', gridCellSize / 2, gridCellSize / 2);
     playerCharacter.label = 'player';
     playerCharacter.ammo = maxAmmo;
+    playerCharacter.hasKey = false;
     keyItem = generateKey(mazeGrid, gridCellSize, validPositions);
     exitPoint = createEntity(totalCols - 2, totalRows - 2, 'green', gridCellSize / 2, gridCellSize / 2, 'exit');
     door = createEntity(totalCols - 2, totalRows - 2, 'brown', gridCellSize, gridCellSize, 'door');
-    monsters = generateMonsters(validPositions, 3, mazeGrid);
+    monsters = generateMonsters(validPositions, monsterSpawnCount, mazeGrid);
     monsters.forEach(monster => monster.label = 'monster');
 }
 
@@ -63,7 +68,9 @@ function runGameLoop() {
 
         drawMazeGrid(gameCtx, mazeGrid, totalRows, totalCols, gridCellSize);
         drawEntity(gameCtx, playerCharacter, gridCellSize);
-        drawEntity(gameCtx, keyItem, gridCellSize);
+        if (!playerCharacter.hasKey) {
+            drawEntity(gameCtx, keyItem, gridCellSize);
+        }
         drawEntity(gameCtx, exitPoint, gridCellSize);
         drawEntity(gameCtx, door, gridCellSize);
 
@@ -90,21 +97,26 @@ function runGameLoop() {
             if (checkCollision(playerCharacter, monster)) {
                 gameActive = false;
                 alert('Game Over!');
-                resetGame();
+                restartGame();
                 return;
             }
         });
 
         if (checkCollision(playerCharacter, exitPoint)) {
             currentScore += 1;
-            resetGame();
+            restartGame();
             return;
+        }
+
+        if (!playerCharacter.hasKey && checkCollision(playerCharacter, keyItem)) {
+            playerCharacter.hasKey = true;
+            keyItem = null;
         }
 
         if (checkWallHit(playerCharacter, mazeGrid)) {
             gameActive = false;
             alert('Game Over!');
-            resetGame();
+            restartGame();
             return;
         }
 
@@ -115,6 +127,18 @@ function runGameLoop() {
 
         animationFrameId = requestAnimationFrame(runGameLoop);
     }
+
+    const instructions = [
+        'Instructions:',
+        'Move with arrow keys.',
+        'Shoot with "F" key.',
+        'Collect the key and reach the exit to win.',
+        'Avoid monsters and don\'t hit walls.',
+        'Bullets can break walls and destroy monsters.'
+    ];
+    instructions.forEach((text, index) => {
+        gameCtx.fillText(text, 170, gameCanvas.height - 200 + (index * 30));
+    });
 }
 
 function move(object, maze, monsters, isBullet = false) {
@@ -155,20 +179,10 @@ function move(object, maze, monsters, isBullet = false) {
     return true;
 }
 
-function resetGame() {
-    cancelAnimationFrame(animationFrameId);
-    setupGame();
-    frameCounter = 0;
-    gameActive = true;
-    movementCounter = 0;
-    playerBullets = [];
-    runGameLoop();
-}
-
 function startGame() {
     if (!gameActive) {
         gameActive = true;
-        resetGame();
+        restartGame();
     }
 }
 
@@ -186,10 +200,15 @@ function togglePauseResumeGame() {
 }
 
 function restartGame() {
-    gameActive = false;
+    gameActive = true;
     currentScore = 0;
     document.getElementById('pauseBtn').innerText = 'Pause';
-    resetGame();
+    cancelAnimationFrame(animationFrameId);
+    setupGame();
+    frameCounter = 0;
+    movementCounter = 0;
+    playerBullets = [];
+    runGameLoop();
 }
 
 function addEventListeners() {
